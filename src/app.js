@@ -6,6 +6,9 @@ var logger = require("morgan");
 
 var indexRouter = require("./routes/index");
 
+// How long to tell a browser to wait before retrying a cold-start failure.
+const RETRY_AFTER_SECONDS = Number(process.env.API_RETRY_AFTER_SECONDS || 10);
+
 var app = express();
 
 app.set("env", process.env.NODE_ENV);
@@ -52,12 +55,19 @@ app.use(function (err, req, res, next) {
       color: "red",
     });
   } else if (err.request) {
-    // The request was made but no response was received
+    // The request was made but no response was received. While the albums API
+    // scales up from zero this is usually transient, so point the browser at a
+    // retry instead of leaving the user on a dead end. The full error is
+    // already on the console for diagnosis.
+    res.set("Retry-After", String(RETRY_AFTER_SECONDS));
     res.status(503).render("error", {
-      title: "Unable to communicate with server",
+      title: "Starting up, one moment",
       error: err,
-      message: err.message,
-      color: "red",
+      message:
+        "The albums service is still waking up. This page refreshes automatically.",
+      color: "yellow",
+      background_color: process.env.BACKGROUND_COLOR,
+      retry_after: RETRY_AFTER_SECONDS,
     });
   } else {
     // Something happened in setting up the request that triggered an Error

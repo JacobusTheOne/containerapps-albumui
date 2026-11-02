@@ -1,5 +1,11 @@
 extends layout
 
+block head
+  // Set only for transient failures, so a user who lands here while the
+  // albums API is still activating gets recovered without touching anything.
+  if retry_after
+    meta(http-equiv="refresh" content=retry_after)
+
 block content
   div(class="ui container")
     div(class="ui " + color + " inverted segment")
