@@ -76,12 +76,36 @@ jobs:
         run: az extension add --name containerapp --upgrade
 
       - name: Verify deployment
+        id: verify
         run: |
-          az containerapp show \
+          FQDN=$(az containerapp show \
             --name album-ui \
             --resource-group rg-azure-container-apps-dev \
-            --query "{image:properties.template.containers[0].image,latestRevision:properties.latestRevisionName,fqdn:properties.configuration.ingress.fqdn}" \
-            --output table
+            --query "properties.configuration.ingress.fqdn" \
+            --output tsv)
+
+          IMAGE=$(az containerapp show \
+            --name album-ui \
+            --resource-group rg-azure-container-apps-dev \
+            --query "properties.template.containers[0].image" \
+            --output tsv)
+
+          REVISION=$(az containerapp show \
+            --name album-ui \
+            --resource-group rg-azure-container-apps-dev \
+            --query "properties.latestRevisionName" \
+            --output tsv)
+
+          echo "Deployed image: $IMAGE"
+          echo "Latest revision: $REVISION"
+          echo "Frontend FQDN: $FQDN"
+
+          if [ -z "$FQDN" ]; then
+            echo "Deployment verification failed: FQDN is empty."
+            exit 1
+          fi
+
+          echo "fqdn=$FQDN" >> "$GITHUB_OUTPUT"
       # Verify that the frontend can retrieve and render actual album data.
       - name: Smoke test frontend
         env:
