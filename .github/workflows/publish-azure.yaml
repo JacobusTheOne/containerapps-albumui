@@ -82,3 +82,44 @@ jobs:
             --resource-group rg-azure-container-apps-dev \
             --query "{image:properties.template.containers[0].image,latestRevision:properties.latestRevisionName,fqdn:properties.configuration.ingress.fqdn}" \
             --output table
+      # Verify that the frontend can retrieve and render actual album data.
+      - name: Smoke test frontend
+        env:
+          FQDN: ${{ steps.verify.outputs.fqdn }}
+        run: |
+          if [ -z "$FQDN" ]; then
+            echo "Smoke test failed: frontend FQDN is empty."
+            exit 1
+          fi
+
+          echo "Testing frontend: https://${FQDN}"
+
+          for attempt in {1..3}; do
+            echo "Smoke test attempt ${attempt}/3"
+
+            HTTP_STATUS=$(curl \
+              --silent \
+              --show-error \
+              --connect-timeout 10 \
+              --max-time 55 \
+              --output response.html \
+              --write-out "%{http_code}" \
+              "https://${FQDN}/") || HTTP_STATUS="000"
+
+            if [ "$HTTP_STATUS" = "200" ] &&
+              grep -Eq 'class="album-title">[^<]+</span>' response.html; then
+              echo "Smoke test passed!"
+              echo "Frontend successfully rendered album data."
+              exit 0
+            fi
+
+            echo "Attempt failed. HTTP status: ${HTTP_STATUS}"
+
+            if [ "$attempt" -lt 3 ]; then
+              echo "Waiting 5 seconds before retrying..."
+              sleep 5
+            fi
+          done
+
+          echo "Smoke test failed: no successful album page was rendered."
+          exit 1
